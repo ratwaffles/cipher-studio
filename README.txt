@@ -1,1 +1,9 @@
-Upload index.html, cipher-engine.js and ciphers/ folder together to GitHub Pages. For guaranteed single-file deployment, use the separate standalone index.html provided alongside this ZIP.
+Cipher Studio v20261008
+
+Added Rat-Tomoe (57 symbols) from user-supplied CSV.
+Run index.html with all files and ciphers/ folder present.
+The engine is separate from the definitions.
+Rat-Tomoe period represents line end in decode mode; tilde removes the previous decoded character.
+All 57 glyphs are vector reconstructions from the CSV stroke signatures.
+Stroke positions: full, top/bottom half, top/middle/bottom third.
+Original Marmont and Templar definitions are preserved.
