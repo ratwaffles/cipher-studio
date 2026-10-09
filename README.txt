@@ -7,3 +7,5 @@ Rat-Tomoe period represents line end in decode mode; tilde removes the previous 
 All 57 glyphs are vector reconstructions from the CSV stroke signatures.
 Stroke positions: full, top/bottom half, top/middle/bottom third.
 Original Marmont and Templar definitions are preserved.
+
+2026-10-09: Added Pigpen cipher (A-Z) as ciphers/pigpen.js.
