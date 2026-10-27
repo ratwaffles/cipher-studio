@@ -1,11 +1,14 @@
-Cipher Studio v20261008
+Cipher Studio v20261011
+Cipher families: Marmont, Templar, Rat-Tomoe, Pigpen, Birds on a Wire.
+Keep index.html, cipher-engine.js, and ciphers/ together when publishing.
+Birds on a Wire glyphs are derived from the supplied chart, with letters and wires removed and solid-black bird silhouettes.
+Virtual keyboard disables unsupported letters and digits per cipher.
 
-Added Rat-Tomoe (57 symbols) from user-supplied CSV.
-Run index.html with all files and ciphers/ folder present.
-The engine is separate from the definitions.
-Rat-Tomoe period represents line end in decode mode; tilde removes the previous decoded character.
-All 57 glyphs are vector reconstructions from the CSV stroke signatures.
-Stroke positions: full, top/bottom half, top/middle/bottom third.
-Original Marmont and Templar definitions are preserved.
+20261026: Added Trees (A-Z) using isolated silhouettes from Trees.jpg.
 
-2026-10-09: Added Pigpen cipher (A-Z) as ciphers/pigpen.js.
+Dice: 25 unique symbols. I and J share the same pattern; U is not present in the supplied key. In decoding, the shared symbol yields [I/J].
+
+Braille: Grade 1 letters A-Z; digits 0-9 encoded as a number sign plus corresponding A-J cell.
+Wakanda: uppercase A-Z, lowercase a-z, and digits 0-9; glyph crops from supplied chart.
+
+Morse: 36 entries (A-Z, 0-9), International Morse Code. SVG glyphs.

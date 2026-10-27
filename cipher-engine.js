@@ -9,6 +9,27 @@ for(const [id,def] of Object.entries(definitions)){
  const opt=document.createElement('option');opt.value=id;opt.textContent=def.name+' ('+def.glyphs.length+' glyphs)';cipherMenu.append(opt);
 }
 let activeKey=definitions[cipher.value].glyphs;
+let capsOn=true;
+const capsControl=document.getElementById('capsControl'),capsButton=document.getElementById('capsLock');
+function updateCapsControl(){
+ const hasLowercase=activeKey.some(e=>e.value&&/[a-z]/.test(e.value));
+ const hasUppercase=activeKey.some(e=>e.value&&/[A-Z]/.test(e.value));
+ const applicable=direction.value==='encode'&&hasLowercase&&hasUppercase;
+ capsControl.hidden=!applicable;
+ capsButton.disabled=!applicable;
+ capsButton.textContent=capsOn?'Caps Lock: ON (A–Z)':'Caps Lock: OFF (a–z)';
+ capsButton.setAttribute('aria-pressed',String(capsOn));
+ capsButton.classList.toggle('caps-active',capsOn);
+}
+capsButton.onclick=()=>{capsOn=!capsOn;updateCapsControl();updateKeyboard()};
+function updateKeyboard(){
+ const supported=new Set();
+ for(const entry of activeKey){if(entry.value)for(const ch of entry.value.toUpperCase())if(/[A-Z0-9]/.test(ch))supported.add(ch)}
+ document.querySelectorAll('#keyboard button[data-character]').forEach(button=>{
+   button.disabled=!supported.has(button.dataset.character);
+   button.title=button.disabled?'Not supported by selected cipher':'';
+ });
+}
 // Crisp: threshold grayscale at 190, preserving the original source images.
 // Preserve source images; cache thresholded copies separately for display and export.
 const broadCache=new Map();
@@ -31,30 +52,47 @@ async function prepareBroad(){
   }));
 }
 
+function updateApplicableControls(){
+ const counts=new Map();
+ for(const e of activeKey){if(e.value && /^[A-Z0-9]+$/.test(e.value))counts.set(e.value,(counts.get(e.value)||0)+1)}
+ const hasHomophones=[...counts.values()].some(n=>n>1);
+ const hasCompounds=[...counts.keys()].some(v=>v.length>1);
+ const hasRaster=activeKey.some(e=>e.img && /^data:image\/(png|jpeg|webp)/i.test(e.img));
+ const encoding=direction.value==='encode';
+ const modeApplicable=encoding && hasHomophones;
+ document.getElementById('modeControl').hidden=!modeApplicable;
+ mode.disabled=!modeApplicable;
+ document.getElementById('seedControl').hidden=!(modeApplicable && mode.value==='random');
+ seed.disabled=!(modeApplicable && mode.value==='random');
+ document.getElementById('compoundsControl').hidden=!(encoding && hasCompounds);
+ compounds.disabled=!(encoding && hasCompounds);
+ document.getElementById('sharpControl').hidden=!hasRaster;
+ sharp.disabled=!hasRaster;
+}
 let selected=[];
-function updateView(){let decoding=direction.value==='decode';document.getElementById('encodePanel').hidden=decoding;document.getElementById('outputPanel').hidden=decoding;document.getElementById('decodePanel').hidden=!decoding;mode.disabled=decoding;seed.disabled=decoding;compounds.disabled=decoding;renderPalette();renderDecoded()}
+function updateView(){updateCapsControl();let decoding=direction.value==='decode';document.getElementById('encodePanel').hidden=decoding;document.getElementById('outputPanel').hidden=decoding;document.getElementById('decodePanel').hidden=!decoding;updateApplicableControls();renderPalette();renderDecoded()}
 function renderPalette(){let palette=document.getElementById('glyphPalette');palette.replaceChildren();let filter=document.getElementById('glyphFilter').value.trim().toUpperCase();for(let e of activeKey){if(filter&&!((e.label+' '+e.value).toUpperCase().includes(filter)))continue;let b=document.createElement('button');b.type='button';b.title=e.label+' → '+(e.value||'unknown');let im=document.createElement('img');im.src=glyphSource(e);im.alt='Glyph '+e.label;let small=document.createElement('small');small.textContent=e.label;b.append(im,small);b.onclick=()=>{selected.push(e);renderDecoded()};palette.append(b)}}
-function renderDecoded(){let area=document.getElementById('selectedGlyphs');area.replaceChildren();let decoded='';for(let e of selected){if(e===null){decoded+=' ';let sp=document.createElement('span');sp.className='space';area.append(sp);continue}if(cipher.value==='rat-tomoe'&&e.value==='~'){decoded=decoded.slice(0,-1)}else if(cipher.value==='rat-tomoe'&&e.value==='.'){decoded+='\n'}else{decoded+=e.value&&/^[A-Z0-9,]+$/.test(e.value)?e.value:'[?'+e.label+']'};let el=document.createElement('span');el.className='glyph';el.title=e.label+' → '+(e.value||'unknown');let im=document.createElement('img');im.src=glyphSource(e);im.alt=e.label;el.append(im);area.append(el)}document.getElementById('decoded').value=decoded}
+function renderDecoded(){let area=document.getElementById('selectedGlyphs');area.replaceChildren();let decoded='';for(let e of selected){if(e===null){decoded+=' ';let sp=document.createElement('span');sp.className='space';area.append(sp);continue}if(cipher.value==='rat-tomoe'&&e.value==='~'){decoded=decoded.slice(0,-1)}else if(cipher.value==='rat-tomoe'&&e.value==='.'){decoded+='\n'}else if(cipher.value==='dice' && (e.value==='I'||e.value==='J')){decoded+='[I/J]'}else{decoded+=e.value&&/^[A-Za-z0-9,]+$/.test(e.value)?e.value:'[?'+e.label+']'};let el=document.createElement('span');el.className='glyph';el.title=e.label+' → '+(e.value||'unknown');let im=document.createElement('img');im.src=glyphSource(e);im.alt=e.label;el.append(im);area.append(el)}document.getElementById('decoded').value=decoded}
 document.getElementById('glyphFilter').oninput=renderPalette;
 document.getElementById('undoGlyph').onclick=()=>{selected.pop();renderDecoded()};
 document.getElementById('spaceGlyph').onclick=()=>{selected.push(null);renderDecoded()};
 document.getElementById('clearGlyph').onclick=()=>{selected=[];renderDecoded()};
 document.getElementById('copyDecoded').onclick=()=>navigator.clipboard.writeText(document.getElementById('decoded').value).catch(()=>window.prompt('Copy plaintext:',document.getElementById('decoded').value));
 document.getElementById('saveDecoded').onclick=()=>download(new Blob([document.getElementById('decoded').value],{type:'text/plain'}),'decoded-plaintext.txt');
-direction.onchange=updateView;sharp.onchange=()=>{document.body.classList.remove('render-balanced','render-original','render-crisp');document.body.classList.add('render-'+sharp.value);if(sharp.value==='crisp'){prepareBroad().then(()=>{if(sharp.value==='crisp'){encode();renderPalette();renderDecoded()}})}else{encode();renderPalette();renderDecoded()}};cipher.onchange=()=>{activeKey=definitions[cipher.value].glyphs;selected=[];encode();updateView();if(sharp.value==='crisp')prepareBroad().then(()=>{encode();renderPalette();renderDecoded()}).catch(err=>console.warn('Crisp processing unavailable:',err))};
+direction.onchange=updateView;mode.addEventListener('change',updateApplicableControls);sharp.onchange=()=>{document.body.classList.remove('render-balanced','render-original','render-crisp');document.body.classList.add('render-'+sharp.value);if(sharp.value==='crisp'){prepareBroad().then(()=>{if(sharp.value==='crisp'){encode();renderPalette();renderDecoded()}})}else{encode();renderPalette();renderDecoded()}};cipher.onchange=()=>{activeKey=definitions[cipher.value].glyphs;selected=[];updateKeyboard();updateCapsControl();updateApplicableControls();encode();updateView();if(sharp.value==='crisp'&&!sharp.disabled)prepareBroad().then(()=>{encode();renderPalette();renderDecoded()}).catch(err=>console.warn('Crisp processing unavailable:',err))};
 let tokens=[];
 function hash(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return h>>>0}
 function randomIndex(s,n){return hash(seed.value+'|'+s)%n}
-function encode(){let source=plain.value.toUpperCase();if(cipher.value==='rat-tomoe')source=source.replace(/\r?\n/g,'.');let groups={};for(const e of activeKey){if(!e.value||!(/^[A-Z0-9]+$/.test(e.value)||(cipher.value==='rat-tomoe'&&['.','~'].includes(e.value))))continue;if(!compounds.checked&&e.value.length>1)continue;(groups[e.value]??=[]).push(e)}
+function encode(){let source=cipher.value==='wakanda'?plain.value:plain.value.toUpperCase();if(cipher.value==='rat-tomoe')source=source.replace(/\r?\n/g,'.');let groups={};for(const e of activeKey){if(!e.value||!(/^[A-Za-z0-9]+$/.test(e.value)||(cipher.value==='rat-tomoe'&&['.','~'].includes(e.value))))continue;if(!compounds.checked&&e.value.length>1)continue;(groups[e.value]??=[]).push(e)}
 for(const g of Object.values(groups))g.sort((a,b)=>b.count-a.count||a.label.localeCompare(b.label));
 let vals=Object.keys(groups).sort((a,b)=>b.length-a.length||a.localeCompare(b));let counts={},newTokens=[];let pos=0;
 while(pos<source.length){let match=vals.find(v=>source.startsWith(v,pos));if(!match){newTokens.push({char:plain.value[pos]});pos++;continue}let candidates=groups[match],num=counts[match]||0;counts[match]=num+1;let idx=mode.value==='first'?0:mode.value==='sequential'?num%candidates.length:randomIndex(match+'|'+num,candidates.length);newTokens.push({entry:candidates[idx]});pos+=match.length}
 tokens=newTokens;output.replaceChildren();let encoded=0;for(const t of tokens){let el=document.createElement('span');if(t.entry){el.className='glyph';el.title=t.entry.label+' → '+t.entry.value;let im=document.createElement('img');im.src=glyphSource(t.entry);im.alt=t.entry.label;el.append(im);encoded++}else if(t.char===' '){el.className='space';el.textContent=' '}else{el.textContent=t.char;el.className=/[A-Za-z]/.test(t.char)?'unknown':''}output.append(el)}status.textContent=encoded+' glyphs • '+activeKey.length+' glyph definitions loaded';}
-for(const line of ['1234567890','QWERTYUIOP','ASDFGHJKL','ZXCVBNM']){let row=document.createElement('div');row.className='keys';for(const ch of line){let b=document.createElement('button');b.textContent=ch;b.onclick=()=>insert(ch);row.append(b)}document.getElementById('keyboard').append(row)}
+for(const line of ['1234567890','QWERTYUIOP','ASDFGHJKL','ZXCVBNM']){let row=document.createElement('div');row.className='keys';for(const ch of line){let b=document.createElement('button');b.textContent=ch;b.dataset.character=ch;b.onclick=()=>insert(cipher.value==='wakanda'&&!capsOn?/^[A-Z]$/.test(ch)?ch.toLowerCase():ch:ch);row.append(b)}document.getElementById('keyboard').append(row)}
 function insert(s){let start=plain.selectionStart,end=plain.selectionEnd;plain.setRangeText(s,start,end,'end');plain.focus();encode()}
 document.getElementById('space').onclick=()=>insert(' ');document.getElementById('back').onclick=()=>{let a=plain.selectionStart,b=plain.selectionEnd;if(a===b&&a>0)a--;plain.setRangeText('',a,b,'end');plain.focus();encode()};document.getElementById('clear').onclick=()=>{plain.value='';encode()};
 function download(blob,name){let url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1500)}
 document.getElementById('copy').onclick=async()=>{let s=tokens.map(t=>t.entry?'['+t.entry.label+']':t.char).join('');try{await navigator.clipboard.writeText(s);status.textContent='Glyph IDs copied'}catch{let t=document.createElement('textarea');t.value=s;document.body.append(t);t.select();document.execCommand('copy');t.remove();status.textContent='Glyph IDs copied'}};
 document.getElementById('save').onclick=()=>download(new Blob([plain.value],{type:'text/plain'}),'cipher-plaintext.txt');
 document.getElementById('export').onclick=async()=>{let items=[];for(const t of tokens){if(t.entry){let im=new Image();im.src=glyphSource(t.entry);await im.decode();items.push({im})}else items.push({char:t.char})}let maxWidth=1100,x=20,y=20,rowHeight=95,placed=[];for(const it of items){let w=it.im?Math.max(38,it.im.width+24):it.char===' '?24:24;if(it.char==='\n'){x=20;y+=rowHeight;continue}if(x+w>maxWidth-20){x=20;y+=rowHeight}placed.push({...it,x,y,w});x+=w+12}let canvas=document.createElement('canvas');canvas.width=maxWidth;canvas.height=y+rowHeight+10;let ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle='#111';ctx.font='24px sans-serif';for(const it of placed){if(it.im){ctx.drawImage(it.im,it.x,it.y+Math.max(0,(65-it.im.height)/2))}else ctx.fillText(it.char,it.x,it.y+40)}canvas.toBlob(blob=>download(blob,'cipher-ciphertext.png'),'image/png')};
-for(const el of [plain,mode,seed,compounds])el.addEventListener(el===plain||el===seed?'input':'change',encode);document.body.classList.add('render-'+sharp.value);encode();updateView();if(sharp.value==='crisp')prepareBroad().then(()=>{encode();renderPalette();renderDecoded()}).catch(err=>console.warn('Crisp processing unavailable:',err)).catch(err=>console.warn('Crisp processing unavailable:',err));
+for(const el of [plain,mode,seed,compounds])el.addEventListener(el===plain||el===seed?'input':'change',encode);document.body.classList.add('render-'+sharp.value);updateKeyboard();updateCapsControl();updateApplicableControls();encode();updateView();if(sharp.value==='crisp'&&!sharp.disabled)prepareBroad().then(()=>{encode();renderPalette();renderDecoded()}).catch(err=>console.warn('Crisp processing unavailable:',err)).catch(err=>console.warn('Crisp processing unavailable:',err));
